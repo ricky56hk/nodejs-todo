@@ -1,0 +1,8 @@
+.btn_create{ margin-bottom: 15px; }
+
+.table{}
+.table tr{ background-color: #FFFFFF; }
+.table tr.hover{ background-color: #FFFFDD; }
+
+.table .action_link{ display: inline-block; }
+.table .action_link.seperator{ padding: 0 5px; }

@@ -1,0 +1,67 @@
+<% layout( 'layout' ) -%>
+
+<h1 class="page-header">
+	<a href="/" title="<%= title %>" alt="<%= title %>"><%= title %></a>
+</h1>
+
+<form class="form-horizontal" action='/edit' method="POST" accept-charset="utf-8">
+  <fieldset>
+    <div id="legend">
+      <legend class="">Edit Event</legend>
+
+      <input type="hidden" name="id" value="<%= event.id %>">
+    </div>
+
+    <div class="control-group">
+      <!-- Summary -->
+      <label class="control-label"  for="summary">Summary</label>
+      <div class="controls">
+        <input type="text" id="summary" name="summary" placeholder="Summary" class="input-xlarge" value="<%= event.summary %>">
+        <p class="help-block"></p>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <!-- Description -->
+      <label class="control-label"  for="description">Description</label>
+      <div class="controls">
+        <input type="text" id="description" name="description" placeholder="Description" class="input-xlarge" value="<%= event.description %>">
+        <p class="help-block"></p>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <!-- Location -->
+      <label class="control-label"  for="location">Location</label>
+      <div class="controls">
+        <input type="text" id="location" name="location" placeholder="Description" class="input-xlarge" value="<%= event.location %>">
+        <p class="help-block"></p>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <!-- Start Date -->
+      <label class="control-label"  for="start_datetime">Start Date</label>
+      <div class="controls">
+        <input type="text" id="start_datetime" name="start_datetime" placeholder="Start Date" class="input-xlarge" value="<%= moment(event.start.dateTime).format("YYYY-MM-DD HH:mm") || moment(event.start.date).format("YYYY-MM-DD") %>">
+        <p class="help-block"></p>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <!-- End Date -->
+      <label class="control-label"  for="end_datetime">End Date</label>
+      <div class="controls">
+        <input type="text" id="end_datetime" name="end_datetime" placeholder="End Date" class="input-xlarge" value="<%= moment(event.end.dateTime).format("YYYY-MM-DD HH:mm") || moment(event.end.date).format("YYYY-MM-DD") %>">
+        <p class="help-block"></p>
+      </div>
+    </div>
+ 
+    <div class="control-group">
+      <!-- Button -->
+      <div class="controls">
+        <button class="btn btn-success">Edit</button>
+      </div>
+    </div>
+  </fieldset>
+</form>
