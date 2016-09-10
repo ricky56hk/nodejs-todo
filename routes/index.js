@@ -24,7 +24,7 @@ function authorize(req, res, callback, gauth_callback){
 		if( credentials ){
 			var redirect_url = req.protocol+"://"+req.hostname;
 			var port;
-			if( port = (process.env.PORT || 3001) ){
+			if( port = (process.env.PORT || 3000) ){
 				redirect_url += ":" + port;
 			}
 			redirect_url += "/gauth";
