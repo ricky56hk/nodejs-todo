@@ -1,80 +1,63 @@
-var utils    = require( '../utils' );
-
 var fs = require('fs');
-var readline = require('readline');
 var google = require('googleapis');
 var googleAuth = require('google-auth-library');
-
 var moment = require('moment');
-var flash = require('express-flash');
 
-// Set the permission scope that requires to manage the Google Calendar
-var SCOPES = ['https://www.googleapis.com/auth/calendar'];
 var TOKEN_DIR = (process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE) + '/.credentials/';
 var TOKEN_PATH = TOKEN_DIR + 'calendar-nodejs-quickstart.json';
 
+var secret = require('../secret.js');
 
-/**
- * Create an OAuth2 client with the given credentials, and then execute the
- * given callback function.
- *
- * @param {Object} credentials The authorization client credentials.
- * @param {function} callback The callback to call with the authorized client.
- */
-function authorize(credentials, callback) {
-	var clientSecret = credentials.installed.client_secret;
-	var clientId = credentials.installed.client_id;
-	var redirectUrl = credentials.installed.redirect_uris[0];
-	var auth = new googleAuth();
-	var oauth2Client = new auth.OAuth2(clientId, clientSecret, redirectUrl);
+var auth = new googleAuth();
+var oauth2Client = {
+	isAuthed : false
+};
 
-	// Check if we have previously stored a token.
-	fs.readFile(TOKEN_PATH, function(err, token) {
-		if (err) {
-			getNewToken(oauth2Client, callback);
-		} else {
-			oauth2Client.credentials = JSON.parse(token);
-			callback(oauth2Client);
+var SCOPES = ['https://www.googleapis.com/auth/calendar'];
+var TOKEN_DIR = (process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE) + '/.credentials/';
+var TOKEN_PATH = TOKEN_DIR + 'maaii-todo-tokens.json';
+
+/******************** functions ********************/
+
+function authorize(req, res, callback, gauth_callback){
+	secret.getCredentials(function( credentials ){
+		if( credentials ){
+			var redirect_url = req.protocol+"://"+req.hostname;
+			var port;
+			if( port = (process.env.PORT || 3001) ){
+				redirect_url += ":" + port;
+			}
+			redirect_url += "/gauth";
+
+			oauth2Client = new auth.OAuth2(
+				credentials.installed.client_id, 
+				credentials.installed.client_secret, 
+				redirect_url
+			);
+
+			fs.readFile(TOKEN_PATH, function(err, token) {
+				if( err ){
+					oauth2Client.isAuthed = false;
+					gauth_callback && gauth_callback( res );
+				} else {
+					oauth2Client.isAuthed = true;
+
+					oauth2Client.credentials = JSON.parse(token);
+
+					callback(oauth2Client);
+				}
+			});
 		}
 	});
 }
 
-/**
- * Get and store new token after prompting for user authorization, and then
- * execute the given callback with the authorized OAuth2 client.
- *
- * @param {google.auth.OAuth2} oauth2Client The OAuth2 client to get token for.
- * @param {getEventsCallback} callback The callback to call with the authorized
- *     client.
- */
-function getNewToken(oauth2Client, callback) {
-	var authUrl = oauth2Client.generateAuthUrl({
-		access_type: 'offline',
-		scope: SCOPES
+function gauth_callback( res ){
+	var auth_url = oauth2Client.generateAuthUrl({
+		access_type: 'offline', // 'online' (default) or 'offline' (gets refresh_token)
+		scope: SCOPES // If you only need one scope you can pass it as string
 	});
 
-	console.log('Authorize this app by visiting this url: ');
-	console.log( authUrl );
-
-	var rl = readline.createInterface({
-		input: process.stdin,
-		output: process.stdout
-	});
-
-	rl.question('Enter the code from that page here: ', function(code) {
-		rl.close();
-
-		oauth2Client.getToken(code, function(err, token) {
-			if (err) {
-				console.log('Error while trying to retrieve access token', err);
-				return;
-			}
-
-			oauth2Client.credentials = token;
-			storeToken(token);
-			callback(oauth2Client);
-		});
-	});
+	res.redirect( auth_url );
 }
 
 /**
@@ -95,12 +78,13 @@ function storeToken(token) {
 	console.log('Token stored to ' + TOKEN_PATH);
 }
 
+
 /**	
  * Lists the next 20 events on the user's primary calendar.
  *
  * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
  */
-function retrieveEvents(auth, res) {
+function retrieveEvents( auth, req, res ) {
 	var calendar = google.calendar('v3');
 
 	calendar.events.list({
@@ -112,23 +96,79 @@ function retrieveEvents(auth, res) {
 		orderBy: 'startTime'
 	}, function(err, response) {
 		if (err) {
-			console.log('[retrieveEvents] The API returned an error: ' + err);
-			return;
+			req.flash('danger', 'Fail to retrieve events. There was an error contacting the Calendar service: ' + err);
+			res.locals.messages = req.flash();
+			res.redirect('/');
 		}
 
 		var events = response.items;
 
+		var status = null,
+			status_message = null;
+
+		if( res.locals.messages ){
+			for (var key in res.locals.messages) {
+				status = key;
+				status_message = res.locals.messages[key];
+			}
+		}
+
 		return res.render( 'index', {
-				title : 'Maaii Todo',
-				moment : moment,
-				events : events,
-				created_event : null,
-				created_error : null,
-				updated_event : null,
-				updated_error : null,
-				deleted_event : null,
-				deleted_error : null
+			title : 'Maaii Todo',
+			moment : moment,
+			isAuthed : auth.isAuthed,
+			events : events,
+			status: status, 
+			status_message: status_message, 
 		});
+	});
+}
+/**
+ * Create a new event 
+ *
+ */
+function createEvent(auth, req, res) {
+	var calendar = google.calendar('v3');
+
+	var event = {
+		'summary': req.body.summary ? req.body.summary : '',
+		'description': req.body.description ? req.body.description : '',
+		'start': {
+			'dateTime': req.body.start_datetime ? moment(req.body.start_datetime).format("YYYY-MM-DDTHH:MM:SS.SSSZ") : '',
+			'timeZone': 'Asia/Hong_Kong',
+		},
+		'end': {
+			'dateTime': req.body.end_datetime ? moment(req.body.end_datetime).format("YYYY-MM-DDTHH:MM:SS.SSSZ") : '',
+			'timeZone': 'Asia/Hong_Kong',
+		},
+		'recurrence': [
+
+		],
+		'attendees': [
+			
+		],
+		'reminders': {
+			'useDefault': false,
+			'overrides': [
+				{'method': 'email', 'minutes': 24 * 60},
+				{'method': 'popup', 'minutes': 10},
+			],
+		},
+	};
+
+	calendar.events.insert({
+		auth: auth,
+		calendarId: 'primary',
+		resource: event,
+	}, function(err, created_event) {
+		req.flash('success', 'Insert a new event successfully');
+
+		if (err) {
+			req.flash('danger', 'Fail to create the event. There was an error contacting the Calendar service: ' + err);
+		}
+
+		res.locals.messages = req.flash();
+		res.redirect('/');
 	});
 }
 
@@ -145,8 +185,9 @@ function getEvent(auth, req, res){
 		eventId: req.params.id
 	}, function(err, response) {
 		if (err) {
-			console.log('[getEvent] The API returned an error: ' + err);
-			return;
+			req.flash('danger', 'Fail to get the event. There was an error contacting the Calendar service: ' + err);
+			res.locals.messages = req.flash();
+			res.redirect('/');
 		}
 		
 		// render the response to edit view
@@ -165,21 +206,19 @@ function getEvent(auth, req, res){
 function editEvent(auth, req, res) {
 	var calendar = google.calendar('v3');
 
-	var data = req.body;
-
 	// check if the eventId is given or not
-	if( data.id ){
+	if( req.body.id ){
 		// form the request data object
 		var event = {
-			'summary': data.summary ? data.summary : '',
-			'location': data.location ? data.location : '',
-			'description': data.description ? data.description : '',
+			'summary': req.body.summary ? req.body.summary : '',
+			'location': req.body.location ? req.body.location : '',
+			'description': req.body.description ? req.body.description : '',
 			'start': {
-				'dateTime': data.start_datetime ? moment(data.start_datetime).format("YYYY-MM-DDTHH:MM:SS.SSSZ") : '',
+				'dateTime': req.body.start_datetime ? moment(req.body.start_datetime).format("YYYY-MM-DDTHH:MM:SS.SSSZ") : '',
 				'timeZone': 'Asia/Hong_Kong',
 			},
 			'end': {
-				'dateTime': data.end_datetime ? moment(data.end_datetime).format("YYYY-MM-DDTHH:MM:SS.SSSZ") : '',
+				'dateTime': req.body.end_datetime ? moment(req.body.end_datetime).format("YYYY-MM-DDTHH:MM:SS.SSSZ") : '',
 				'timeZone': 'Asia/Hong_Kong',
 			},
 			'recurrence': [
@@ -199,94 +238,26 @@ function editEvent(auth, req, res) {
 
 		calendar.events.update({
 			auth: auth,
-			eventId: data.id,
+			eventId: req.body.id,
 			calendarId: 'primary',
 			resource: event,
 		}, function(err, updated_event) {
+			req.flash('success', 'Update the event "'+req.body.summary+'" successfully');
+			
 			if (err) {
-				console.log('There was an error contacting the Calendar service: ' + err);
-				return;
+				req.flash('danger', 'Edit event fail. There was an error contacting the Calendar service: ' + err);
 			}
 
-			// render the response to index view
-			return res.render( 'index', {
-				title : 'Maaii Todo',
-				moment : moment,
-				events: null,
-				created_event : null,
-				created_error : null,
-				updated_event : updated_event,
-				updated_error : null,
-				deleted_event : null,
-				deleted_error : null
-			});
+			res.locals.messages = req.flash();
+			res.redirect('/');
 		});
 	}else{
 		// halt if eventId is missing
-		console.log('missing Event ID');
+		req.flash('danger', 'Missing Event ID');
+		res.locals.messages = req.flash();
+		res.redirect('/');
 		return;
 	}
-}
-
-/**
- * Create a new event 
- *
- */
-function createEvent(auth, req, res) {
-	var calendar = google.calendar('v3');
-
-	var data = req.body;
-
-	var event = {
-		'summary': data.summary ? data.summary : '',
-		'location': data.location ? data.location : '',
-		'description': data.description ? data.description : '',
-		'start': {
-			'dateTime': data.start_datetime ? moment(data.start_datetime).format("YYYY-MM-DDTHH:MM:SS.SSSZ") : '',
-			'timeZone': 'Asia/Hong_Kong',
-		},
-		'end': {
-			'dateTime': data.end_datetime ? moment(data.end_datetime).format("YYYY-MM-DDTHH:MM:SS.SSSZ") : '',
-			'timeZone': 'Asia/Hong_Kong',
-		},
-		'recurrence': [
-			
-		],
-		'attendees': [
-			
-		],
-		'reminders': {
-			'useDefault': false,
-			'overrides': [
-				{'method': 'email', 'minutes': 24 * 60},
-				{'method': 'popup', 'minutes': 10},
-			],
-		},
-	};
-
-	calendar.events.insert({
-		auth: auth,
-		calendarId: 'primary',
-		resource: event,
-	}, function(err, created_event) {
-		if (err) {
-			console.log('There was an error contacting the Calendar service: ' + err);
-			return;
-		}
-
-		// render the response to index view
-		return res.render( 'index', {
-			title : 'Maaii Todo',
-			moment : moment,
-			events: null,
-			created_event : created_event,
-			created_error : null,
-			updated_event : null,
-			updated_error : null,
-			deleted_event : null,
-			deleted_error : null
-		});
-	});
 }
 
 /**
@@ -306,37 +277,46 @@ function deleteEvent(auth, req, res) {
 			return;
 		}
 
-		// render the response to index view
-		return res.render( 'index', {
-			title : 'Maaii Todo',
-			moment : moment,
-			events: null,
-			created_event : null,
-			created_error : null,
-			updated_event : null,
-			updated_error : null,
-			deleted_event : deleted_event ? false : true,
-			deleted_error : null
-		});
+		req.flash('success', 'Delete the event successfully');
+		res.locals.messages = req.flash();
+
+		res.redirect('/');
 	});
 }
 
-/*************************************/
+/******************** routes ********************/
+
+exports.landing = function ( req, res, next ){
+	res.render( 'landing', {
+		title : 'Maaii Todo',
+	});
+};
 
 exports.index = function ( req, res, next ){
-	// Load client secrets from a local file.
-	fs.readFile('private/client_secret.json', function processClientSecrets(err, content) {
-		if (err) {
-			console.log('Error loading client secret file: ' + err);
-			return;
-		}
+	// Authorize a client with the loaded credentials, then call the Google Calendar API.
+	authorize(req, res, function( auth ){
+		retrieveEvents( auth, req, res );
+	}, gauth_callback);
+};
 
-		// Authorize a client with the loaded credentials, then call the Google Calendar API.
-		authorize(JSON.parse(content), function(auth){
-			// retrieve a list of events from Google Calendar
-			retrieveEvents( auth, res );
+exports.gauth = function ( req, res, next ){
+	if( req.param('code') ){
+		// if a code is receieved, i.e. auth success and get the token
+		oauth2Client.getToken(req.query.code, function(err, token) {
+			if (err) {
+				console.log('Error while trying to retrieve access token', err);
+				return;
+			}
+
+			oauth2Client.credentials = token;
+			
+			storeToken(token);
+
+			res.redirect('/');
 		});
-	});
+	} else {
+		gauth_callback( res );
+	}
 };
 
 exports.create = function ( req, res, next ){
@@ -346,79 +326,47 @@ exports.create = function ( req, res, next ){
 			title : 'Maaii Todo',
 		});
 	} else if (req.method.toLowerCase() == 'post') {
-		// Load client secrets from a local file.
-		fs.readFile('private/client_secret.json', function processClientSecrets(err, content) {
-			if (err) {
-				console.log('Error loading client secret file: ' + err);
-				return;
-			}
+		authorize(req, res, function(auth){
+			// if it's a POST request, insert the new event to Google Calendar
+			createEvent( auth, req, res );
+		}, gauth_callback);
+	}
+};
 
-			// Authorize a client with the loaded credentials, then call the Google Calendar API.
-			authorize(JSON.parse(content), function(auth){
-				// if it's a POST request, insert the new event to Google Calendar
-				createEvent( auth, req, res );
-			});
+exports.edit = function( req, res, next ){
+	if (req.method.toLowerCase() == 'get') {
+		authorize(req, res, function(auth){
+			// if it's a GET request, retrieve the specific event info from Google Calendar
+			// and put in the edit form
+			getEvent( auth, req, res );
+		});
+	} else if (req.method.toLowerCase() == 'post') {
+		authorize(req, res, function(auth){
+			// if it's a POST request, update the specific event info to Google Calendar
+			editEvent( auth, req, res );
 		});
 	}
 };
 
 exports.destroy = function ( req, res, next ){
-	// Load client secrets from a local file.
-	fs.readFile('private/client_secret.json', function processClientSecrets(err, content) {
-		if (err) {
-			console.log('Error loading client secret file: ' + err);
-			return;
-		}
-
-		// Authorize a client with the loaded credentials, then call the Google Calendar API.
-		authorize(JSON.parse(content), function(auth){
-			// if it's a POST request, remove the specific event from Google Calendar
-			deleteEvent( auth, req, res );
-		});
+	authorize(req, res, function(auth){
+		// if it's a POST request, remove the specific event from Google Calendar
+		deleteEvent( auth, req, res );
 	});
 };
 
-exports.edit = function( req, res, next ){
-	if (req.method.toLowerCase() == 'get') {
-		// Load client secrets from a local file.
-		fs.readFile('private/client_secret.json', function processClientSecrets(err, content) {
-			if (err) {
-				console.log('Error loading client secret file: ' + err);
-				return;
+exports.logout = function( req, res, next ){
+	authorize(req, res, function(auth){
+		// log user out by delete the token file
+		fs.unlink(TOKEN_PATH, function( err ) {
+			if( err ){
+				req.flash('danger', 'Fail to remove TOKEN file');
+			}else{
+				req.flash('success', 'TOKEN file is removed');
 			}
 
-			// Authorize a client with the loaded credentials, then call the Google Calendar API.
-			authorize(JSON.parse(content), function(auth){
-				// if it's a GET request, retrieve the specific event info from Google Calendar
-				// and put in the edit form
-				getEvent( auth, req, res );
-			});
+			res.locals.messages = req.flash();
+			res.redirect('/landing');
 		});
-	} else if (req.method.toLowerCase() == 'post') {
-		// Load client secrets from a local file.
-		fs.readFile('private/client_secret.json', function processClientSecrets(err, content) {
-			if (err) {
-				console.log('Error loading client secret file: ' + err);
-				return;
-			}
-
-			// Authorize a client with the loaded credentials, then call the Google Calendar API.
-			authorize(JSON.parse(content), function(auth){
-				// if it's a POST request, update the specific event info to Google Calendar
-				editEvent( auth, req, res );
-			});
-		});
-	}
-};
-
-// ** express turns the cookie key to lowercase **
-exports.current_user = function ( req, res, next ){
-	var user_id = req.cookies ?
-			req.cookies.user_id : undefined;
-
-	if( !user_id ){
-		res.cookie( 'user_id', utils.uid( 32 ));
-	}
-
-	next();
+	});
 };

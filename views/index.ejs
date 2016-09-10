@@ -2,94 +2,76 @@
 
 <h1 class="page-header">
 	<a href="/" title="<%= title %>" alt="<%= title %>"><%= title %></a>
+
+	<% if( isAuthed ){  %>
+		<a href="/logout" class="btn btn-default pull-right">Logout</a>
+	<% } %>
 </h1>
 
-<% if( created_event ){ %>
-	<div class="alert alert-success" role="alert">
-		Event <strong>"<%= created_event.summary %>"</strong> is created successfully
-	</div>
-<% }else if( created_error ){ %>
-	<div class="alert alert-danger" role="alert">
-		<%= created_error %>
+<% if( status_message ){ %>
+	<div class="alert alert-<%= status %>" role="alert">
+		<%= status_message %>
 	</div>
 <% } %>
 
-<% if( updated_event ){ %>
-	<div class="alert alert-success" role="alert">
-		Updated event <strong>"<%= updated_event.summary %>"</strong> successfully
+<% if( isAuthed ){  %>
+	<div class="row">
+		<div class="col-xs-12">
+			<a href="/create" class="btn btn-primary btn_create" title="Create New Item" alt="Create New Item">Create New Item</a>
+		</div>
 	</div>
-<% }else if( updated_error ){ %>
-	<div class="alert alert-danger" role="alert">
-		<%= updated_error %>
-	</div>
-<% } %>
 
-<% if( deleted_event ){ %>
-	<div class="alert alert-success" role="alert">
-		Event is deleted successfully
-	</div>
-<% }else if( deleted_error ){ %>
-	<div class="alert alert-danger" role="alert">
-		<%= deleted_error %>
-	</div>
-<% } %>
-
-<div class="row">
-	<div class="col-xs-12">
-		<a href="/create" class="btn btn-primary btn_create" title="Create New Item" alt="Create New Item">Create New Item</a>
-	</div>
-</div>
-
-<% if( events ){ %>
-	<div class="panel panel-default">
-		<table class="table">
-			<thead>
-				<tr>
-					<th>Start Date</th>
-					<th>End Date</th>
-					<th>To Do</th>
-					<th>Actions</th>
-				</tr>
-			</thead>
-
-			<tbody>
-				<% events.forEach( function ( event ){ %>
+	<% if( events ){ %>
+		<div class="panel panel-default">
+			<table class="table">
+				<thead>
 					<tr>
-						<td><%= moment(event.start.dateTime).format("YYYY-MM-DD HH:mm (ddd)") || moment(event.start.date).format("YYYY-MM-DD") %></td>
-						<td><%= moment(event.end.dateTime).format("YYYY-MM-DD HH:mm (ddd)") || moment(event.end.date).format("YYYY-MM-DD") %></td>
-						<td><%= event.summary %></td>
-						<td>
-							<a href="/edit/<%= event.id %>" data-etag="<%= event.etag %>" title="Edit" alt="Edit" class="action_link">
-								<div class="glyphicon glyphicon-pencil" aria-hidden="true"></div>
-							</a>
-							
-							<div class="action_link seperator">|</div>
-
-							<a href="/destroy/<%= event.id %>" title="Delete" alt="Delete" class="action_link action-delete" data-summary="<%= event.summary %>">
-								<div class="glyphicon glyphicon-trash" aria-hidden="true"></div>
-							</a>
-						</td>
+						<th>Start Date</th>
+						<th>End Date</th>
+						<th>To Do</th>
+						<th>Actions</th>
 					</tr>
-				<% }); %>
-			</tbody>
-		</table>
+				</thead>
 
-		<script type="text/javascript">
-			$(document).ready(function(){
-				$('.action-delete').click(function(){
-					var summary = $(this).data('summary');
+				<tbody>
+					<% events.forEach( function ( event ){ %>
+						<tr>
+							<td><%= moment(event.start.dateTime).format("YYYY-MM-DD HH:mm (ddd)") || moment(event.start.date).format("YYYY-MM-DD") %></td>
+							<td><%= moment(event.end.dateTime).format("YYYY-MM-DD HH:mm (ddd)") || moment(event.end.date).format("YYYY-MM-DD") %></td>
+							<td><%= event.summary %></td>
+							<td>
+								<a href="/edit/<%= event.id %>" data-etag="<%= event.etag %>" title="Edit" alt="Edit" class="action_link">
+									<div class="glyphicon glyphicon-pencil" aria-hidden="true"></div>
+								</a>
+								
+								<div class="action_link seperator">|</div>
 
-					if( !confirm('Do you confirm to delete "'+summary+'" ?') ){
-						return false;
-					}
+								<a href="/destroy/<%= event.id %>" title="Delete" alt="Delete" class="action_link action-delete" data-summary="<%= event.summary %>">
+									<div class="glyphicon glyphicon-trash" aria-hidden="true"></div>
+								</a>
+							</td>
+						</tr>
+					<% }); %>
+				</tbody>
+			</table>
+
+			<script type="text/javascript">
+				$(document).ready(function(){
+					$('.action-delete').click(function(){
+						var summary = $(this).data('summary');
+
+						if( !confirm('Do you confirm to delete "'+summary+'" ?') ){
+							return false;
+						}
+					});
+
+					$('.table tr').hover(function() {
+						$(this).addClass('hover');
+					}, function() {
+						$(this).removeClass('hover');
+					});
 				});
-
-				$('.table tr').hover(function() {
-					$(this).addClass('hover');
-				}, function() {
-					$(this).removeClass('hover');
-				});
-			});
-		</script>
-	</div>
+			</script>
+		</div>
+	<% } %>
 <% } %>

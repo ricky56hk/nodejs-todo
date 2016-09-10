@@ -14,7 +14,11 @@ var logger         = require( 'morgan' );
 var errorHandler   = require( 'errorhandler' );
 var static         = require( 'serve-static' );
 
+var session = require('express-session');
+var flash = require('express-flash');
+
 var app    = express();
+var sessionStore = new session.MemoryStore;
 
 // all environments
 app.set( 'port', process.env.PORT || 3001 );
@@ -28,6 +32,24 @@ app.use( cookieParser() );
 app.use( bodyParser.json() );
 app.use( bodyParser.urlencoded({ extended : true }) );
 
+app.use(session({
+    cookie: { maxAge: 60000 },
+    store: sessionStore,
+    saveUninitialized: true,
+    resave: 'true',
+    secret: 'secret'
+}));
+
+app.use( flash() );
+
+// Custom flash middleware -- from Ethan Brown's book, 'Web Development with Node & Express'
+app.use(function(req, res, next){
+    // if there's a flash message in the session request, make it available in the response, then delete it
+    res.locals.sessionFlash = req.session.sessionFlash;
+    delete req.session.sessionFlash;
+    next();
+});
+
 app.use( static( path.join( __dirname, 'public' )) );
 
 // development only
@@ -37,13 +59,21 @@ if( 'development' == app.get( 'env' )){
 
 // Routes
 var routes = require( './routes' );
-app.use( routes.current_user );
 app.get( '/',				routes.index );
+
+app.get( '/landing', 		routes.landing );
+
 app.get( '/create',			routes.create );
 app.post( '/create',		routes.create );
+
 app.get( '/edit/:id',		routes.edit );
 app.post( '/edit',			routes.edit );
+
 app.get( '/destroy/:id',	routes.destroy );
+
+app.get( '/gauth', 			routes.gauth );
+
+app.get( '/logout', 		routes.logout );
 
 http.createServer( app ).listen( app.get( 'port' ), function (){
 	console.log( 'Express server listening on port ' + app.get( 'port' ) );
