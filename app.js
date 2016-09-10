@@ -18,7 +18,6 @@ var session = require('express-session');
 var flash = require('express-flash');
 
 var app    = express();
-var sessionStore = new session.MemoryStore;
 
 // all environments
 app.set( 'port', process.env.PORT || 3001 );
@@ -34,7 +33,6 @@ app.use( bodyParser.urlencoded({ extended : true }) );
 
 app.use(session({
     cookie: { maxAge: 60000 },
-    store: sessionStore,
     saveUninitialized: true,
     resave: 'true',
     secret: 'secret'
