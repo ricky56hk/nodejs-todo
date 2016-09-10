@@ -30,8 +30,8 @@ function authorize(req, res, callback, gauth_callback){
 			redirect_url += "/gauth";
 
 			oauth2Client = new auth.OAuth2(
-				credentials.installed.client_id, 
-				credentials.installed.client_secret, 
+				credentials.web.client_id, 
+				credentials.web.client_secret, 
 				redirect_url
 			);
 
